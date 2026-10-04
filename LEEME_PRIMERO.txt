@@ -1,0 +1,15 @@
+IT WAREHOUSE 404 v3.0.0 — MULTIUSUARIO
+
+1) Instala PostgreSQL en el equipo servidor.
+2) Crea usuario/BD warehouse404 (ver README.md).
+3) Ejecuta INSTALAR_DEPENDENCIAS.bat.
+4) Copia CONFIG_EJEMPLO.bat a CONFIG_LOCAL.bat y configura la URL PostgreSQL.
+5) Ejecuta INICIALIZAR_BBDD.bat y crea el primer administrador.
+6) Si entrarán otros PCs/móviles, ejecuta ABRIR_FIREWALL_PRIVADO.bat.
+7) Ejecuta INICIAR_SERVIDOR.bat.
+8) Accede desde el servidor a http://127.0.0.1:8765.
+
+IMPORTANTE PARA EL ESCÁNER MÓVIL:
+La cámara web suele exigir HTTPS cuando accedes por IP LAN. Configura WAREHOUSE_TLS_CERT y WAREHOUSE_TLS_KEY con un certificado confiable o usa un reverse proxy HTTPS. El modo de búsqueda manual funciona sin cámara.
+
+Si vienes de v2.x, inicializa primero una v3 vacía y luego ejecuta MIGRAR_DESDE_V2.bat UNA SOLA VEZ.

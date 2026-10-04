@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#11151b">
+  <title>IT Warehouse 404 · Multiusuario</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <section id="loginScreen" class="login-screen">
+    <form id="loginForm" class="login-card">
+      <div class="logo big">404</div>
+      <h1>IT Warehouse</h1><p>Servidor central · PostgreSQL · v3.0</p>
+      <label>Usuario<input name="username" autocomplete="username" required autofocus></label>
+      <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Entrar</button><div id="loginError" class="form-error"></div>
+    </form>
+  </section>
+
+  <div id="appShell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="brand"><div class="logo">404</div><div><strong>IT Warehouse</strong><span>Multiusuario · v3.0</span></div></div>
+      <nav>
+        <button class="nav active" data-view="dashboard">Dashboard</button>
+        <button class="nav" data-view="inventory">Inventario</button>
+        <button class="nav" data-view="locations">Ubicaciones</button>
+        <button class="nav" data-view="warehouse-map">Mapa</button>
+        <button class="nav role-operator" data-view="new-item">Nueva entrada</button>
+        <button class="nav" data-view="movements">Movimientos</button>
+        <button class="nav" data-view="scanner">Escáner móvil</button>
+        <button class="nav role-manager" data-view="audit">Auditoría</button>
+        <button class="nav role-admin" data-view="users">Usuarios</button>
+      </nav>
+      <div class="side-footer">
+        <label>Tema<select id="themeSelect"><option value="graphite">Graphite</option><option value="blue">Blue Ops</option><option value="green">Terminal</option><option value="light">Light</option></select></label>
+        <button id="logoutBtn" class="ghost">Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <button id="menuBtn" class="mobile-menu ghost">☰</button>
+        <div><h1 id="viewTitle">Dashboard</h1><p id="viewSubtitle">Estado central del almacén.</p></div>
+        <div class="top-actions"><input id="globalSearch" placeholder="Serie, asset, modelo o ubicación…"><div id="userChip" class="user-chip"></div></div>
+      </header>
+
+      <section id="dashboard" class="view active"><div id="statsGrid" class="stats-grid"></div><div class="two-col"><article class="panel"><div class="panel-head"><h2>Stock por categoría</h2></div><div id="categoryBars"></div></article><article class="panel"><div class="panel-head"><h2>Stock bajo</h2></div><div id="lowStock"></div></article></div><article class="panel"><div class="panel-head"><h2>Últimos movimientos</h2></div><div id="recentMovements"></div></article></section>
+
+      <section id="inventory" class="view"><div class="toolbar panel"><input id="inventorySearch" placeholder="Buscar inventario…"><select id="statusFilter"><option value="">Todos</option><option value="disponible">Disponible</option><option value="entregado">Entregado</option><option value="reparacion">Reparación</option><option value="baja">Baja</option><option value="sin_stock">Sin stock</option></select><button id="refreshInventory" class="ghost">Actualizar</button><button id="exportItemsBtn" class="ghost">CSV</button></div><div class="panel table-wrap"><table><thead><tr><th>Tipo</th><th>Material</th><th>Serie / Asset</th><th>Stock</th><th>Estado</th><th>Ubicación</th><th>Acciones</th></tr></thead><tbody id="inventoryBody"></tbody></table></div></section>
+
+      <section id="locations" class="view"><div class="split-layout"><form id="locationForm" class="panel form-grid compact-form role-manager"><div class="span-2"><h2>Nueva ubicación</h2><p>Solo manager/admin.</p></div><label>Zona<input name="zone" required></label><label>Estantería<input name="rack" required></label><label>Balda<input name="shelf" required></label><label>Posición<input name="position"></label><label>Capacidad<input name="capacity" type="number" min="0" value="1"></label><label>Código<input name="code"></label><label class="span-2">Notas<input name="notes"></label><div class="span-2 form-actions"><button>Crear</button><button type="reset" class="ghost">Limpiar</button></div></form><article class="panel"><div class="panel-head"><div><h2>Ubicaciones</h2><p id="locationsCount" class="muted"></p></div><button id="exportLocationsBtn" class="ghost">CSV</button></div><input id="locationSearch" class="full-input" placeholder="Buscar ubicación…"><div id="locationsList" class="locations-list"></div></article></div></section>
+
+      <section id="warehouse-map" class="view"><div class="toolbar panel"><strong>Vista física</strong><button id="refreshMap" class="ghost">Actualizar</button></div><div id="warehouseMap" class="warehouse-map"></div></section>
+
+      <section id="new-item" class="view"><form id="itemForm" class="panel form-grid"><div class="span-2"><h2>Registrar entrada</h2><p>El operador se registra automáticamente desde tu sesión.</p></div><label>Modo<select name="tracking_mode" id="trackingMode"><option value="serialized">Individualizado</option><option value="bulk">Stock por cantidad</option></select></label><label>Categoría<input name="category" required></label><label>Fabricante<input name="manufacturer"></label><label>Modelo<input name="model" required></label><label class="serial-field">Serie<input name="serial_number"></label><label class="serial-field">Asset Tag<input name="asset_tag"></label><label class="bulk-field hidden">Cantidad<input name="quantity" type="number" min="0" value="1"></label><label class="bulk-field hidden">Stock mínimo<input name="min_stock" type="number" min="0" value="0"></label><label class="span-2">Ubicación<select name="location_id" id="itemLocationSelect"><option value="">Sin ubicación</option></select></label><label>Ticket<input name="ticket"></label><label class="span-2">Notas<textarea name="notes" rows="3"></textarea></label><div class="span-2 form-actions"><button>Registrar entrada</button><button type="reset" class="ghost">Limpiar</button></div></form></section>
+
+      <section id="movements" class="view"><div class="toolbar panel"><button id="refreshMovements" class="ghost">Actualizar</button><button id="exportMovementsBtn" class="ghost">CSV</button></div><div class="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Acción</th><th>Material</th><th>Cant.</th><th>De → A</th><th>Ticket</th><th>Operador</th></tr></thead><tbody id="movementsBody"></tbody></table></div></section>
+
+      <section id="scanner" class="view"><div class="scanner-layout"><article class="panel"><h2>Escáner QR / Asset</h2><p>En móvil usa la cámara. Si el navegador no implementa BarcodeDetector, puedes introducir el código manualmente.</p><div id="cameraState" class="muted"></div><video id="scannerVideo" playsinline muted></video><div class="form-actions"><button id="startScanBtn" type="button">Iniciar cámara</button><button id="stopScanBtn" type="button" class="ghost">Detener</button></div><form id="manualScanForm" class="inline-form"><input id="manualScan" placeholder="Asset, serie o código de ubicación" required><button>Buscar</button></form></article><article class="panel"><h2>Resultado</h2><div id="scanResult" class="empty">Sin lectura.</div></article></div></section>
+
+      <section id="audit" class="view"><div class="toolbar panel"><input id="auditActor" placeholder="Operador"><input id="auditAction" placeholder="Acción"><button id="refreshAudit" class="ghost">Filtrar</button></div><div class="panel table-wrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Resumen</th><th>IP</th></tr></thead><tbody id="auditBody"></tbody></table></div></section>
+
+      <section id="users" class="view"><div class="split-layout"><form id="userForm" class="panel form-grid compact-form"><div class="span-2"><h2>Crear usuario</h2></div><label>Usuario<input name="username" required></label><label>Nombre visible<input name="display_name" required></label><label>Rol<select name="role"><option value="operator">Operator</option><option value="viewer">Viewer</option><option value="manager">Manager</option><option value="admin">Admin</option></select></label><label>Contraseña<input name="password" type="password" minlength="12" required></label><div class="span-2 form-actions"><button>Crear usuario</button></div></form><article class="panel"><h2>Usuarios</h2><div id="usersList" class="users-list"></div></article></div></section>
+    </main>
+  </div>
+
+  <dialog id="itemDialog"><div id="itemDialogContent"></div></dialog>
+  <dialog id="locationDialog"><div id="locationDialogContent"></div></dialog>
+  <dialog id="movementDialog"><form id="movementForm" class="modal-card"><div class="modal-head"><h2 id="movementTitle">Movimiento</h2><button type="button" class="icon-btn" data-close="movementDialog">×</button></div><input type="hidden" name="item_id"><input type="hidden" name="action"><div id="movementItemSummary" class="summary-card"></div><div id="movementHint" class="movement-hint hidden"></div><label id="quantityWrap">Cantidad<input name="quantity" type="number" min="1" value="1"></label><label id="adjustWrap" class="hidden">Nuevo stock<input name="new_quantity" type="number" min="0"></label><label id="personWrap">Persona / destino<input name="person"></label><label id="movementLocationWrap">Ubicación destino<select name="to_location_id" id="movementLocationSelect"></select></label><label>Ticket<input name="ticket"></label><label>Notas<textarea name="notes" rows="3"></textarea></label><div class="form-actions"><button>Guardar</button><button type="button" class="ghost" data-close="movementDialog">Cancelar</button></div></form></dialog>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
