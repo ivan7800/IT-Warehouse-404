@@ -18,7 +18,7 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(set(allowed_actions({**base,'status':'entregado'})), {'devolucion','reparacion','baja'})
         self.assertEqual(allowed_actions({**base,'status':'baja'}), [])
     def test_bulk_transitions(self):
-        self.assertEqual(set(allowed_actions({'tracking_mode':'bulk','quantity':12,'status':'disponible'})), {'mover','ajuste'})
-        self.assertEqual(allowed_actions({'tracking_mode':'bulk','quantity':0,'status':'sin_stock'}), ['ajuste'])
+        self.assertEqual(set(allowed_actions({'tracking_mode':'bulk','quantity':12,'status':'disponible'})), {'entrada','salida','mover','ajuste'})
+        self.assertEqual(allowed_actions({'tracking_mode':'bulk','quantity':0,'status':'sin_stock'}), ['entrada','ajuste'])
 
 if __name__=='__main__': unittest.main()
