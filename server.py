@@ -85,9 +85,9 @@ def location_label(row):
 def allowed_actions(item):
     mode, status = item['tracking_mode'], item['status']
     if mode == 'bulk':
-        if status in ('baja',):
+        if status == 'baja':
             return []
-        return ['mover', 'ajuste'] if int(item['quantity']) > 0 else ['ajuste']
+        return (['entrada', 'salida', 'mover', 'ajuste'] if int(item['quantity']) > 0 else ['entrada', 'ajuste'])
     matrix = {
         'disponible': ['salida', 'mover', 'reparacion', 'baja'],
         'entregado': ['devolucion', 'reparacion', 'baja'],
@@ -489,13 +489,33 @@ class AppHandler(BaseHTTPRequestHandler):
             if action not in allowed_actions(item): return self._error(f"Acción '{action}' no válida para el estado actual",409)
             from_status=item['status']; from_loc=item['location_id']; qty=1; to_status=from_status; final_loc=from_loc; final_qty=int(item['quantity'])
             if item['tracking_mode']=='bulk':
-                if action=='mover':
-                    qty=int(item['quantity']); final_loc=to_loc_id
+                available=int(item['quantity'])
+                if action in ('salida','mover') and requested_qty>available:
+                    return self._error('Cantidad superior al stock disponible',409)
+                if action=='salida':
+                    if not person: return self._error('Indica persona o departamento destinatario')
+                    qty=requested_qty; final_qty=available-qty
+                    to_status='disponible' if final_qty>0 else 'sin_stock'
+                    final_loc=from_loc if final_qty>0 else None
+                elif action=='entrada':
+                    qty=requested_qty; final_qty=available+qty
+                    to_status='disponible'
+                    final_loc=from_loc or to_loc_id
+                    if not final_loc: return self._error('Selecciona ubicación para recibir el stock')
+                    if final_qty>1000000: return self._error('Stock máximo superado',409)
+                elif action=='mover':
+                    qty=requested_qty; final_loc=to_loc_id
                     if not final_loc: return self._error('Selecciona ubicación destino')
                     if final_loc==from_loc: return self._error('La ubicación destino es la actual',409)
+                    if qty<available:
+                        # El lote original permanece en origen; se crea otro lote en destino.
+                        final_qty=available-qty
+                        final_loc=from_loc
                 elif action=='ajuste':
                     if new_qty<0: return self._error('Nuevo stock inválido')
-                    qty=max(1,abs(new_qty-int(item['quantity']))); final_qty=new_qty; to_status='disponible' if new_qty>0 else 'sin_stock'; final_loc=from_loc if new_qty>0 else None
+                    qty=max(1,abs(new_qty-available)); final_qty=new_qty
+                    to_status='disponible' if new_qty>0 else 'sin_stock'
+                    final_loc=from_loc if new_qty>0 else None
                 else: return self._error('Acción no válida para stock a granel',409)
             else:
                 if action=='salida':
@@ -510,16 +530,32 @@ class AppHandler(BaseHTTPRequestHandler):
                     if final_loc==from_loc: return self._error('La ubicación destino es la actual',409)
                 elif action=='reparacion': to_status='reparacion'; final_loc=None
                 elif action=='baja': to_status='baja'; final_loc=None
-            if final_loc:
-                loc=one(conn,'SELECT * FROM locations WHERE id=%s AND active=TRUE FOR UPDATE',(final_loc,))
-                if not loc: return self._error('Ubicación destino no válida')
-                units=final_qty if item['tracking_mode']=='bulk' else 1
-                cap=ensure_capacity(conn,loc,units,exclude_item_id=item_id)
+            # Bloquear las ubicaciones implicadas en orden estable evita interbloqueos.
+            location_ids=sorted({x for x in (from_loc, to_loc_id if action in ('mover','entrada') else None, final_loc) if x})
+            locked={}
+            for lid in location_ids:
+                locked[lid]=one(conn,'SELECT * FROM locations WHERE id=%s AND active=TRUE FOR UPDATE',(lid,))
+                if not locked[lid]: return self._error('Ubicación no válida',400)
+            partial_move=(item['tracking_mode']=='bulk' and action=='mover' and qty<int(item['quantity']))
+            target_loc=to_loc_id if partial_move else final_loc
+            if target_loc:
+                destination=locked[target_loc]
+                extra=qty if partial_move else (final_qty if item['tracking_mode']=='bulk' else 1)
+                excluding=item_id if target_loc==from_loc else None
+                cap=ensure_capacity(conn,destination,extra,exclude_item_id=excluding)
                 if cap: return self._error(cap,409)
+            # La entrada en la misma ubicación cambia la cantidad total y debe validarse.
+            if item['tracking_mode']=='bulk' and action=='entrada' and final_loc==from_loc and final_loc:
+                cap=ensure_capacity(conn,locked[final_loc],final_qty,exclude_item_id=item_id)
+                if cap: return self._error(cap,409)
+            if partial_move:
+                execute(conn,"""INSERT INTO items(category,manufacturer,model,serial_number,asset_tag,tracking_mode,quantity,min_stock,status,location_id,notes)
+                    VALUES(%s,%s,%s,'','','bulk',%s,%s,'disponible',%s,%s)""",
+                    (item['category'],item['manufacturer'],item['model'],qty,item['min_stock'],to_loc_id,item['notes']))
             execute(conn,"""UPDATE items SET status=%s,location_id=%s,quantity=%s,updated_at=NOW(),version=version+1 WHERE id=%s""",(to_status,final_loc,final_qty,item_id))
             movement=execute(conn,"""INSERT INTO movements(item_id,action,quantity,from_status,to_status,from_location_id,to_location_id,person,ticket,operator_user_id,operator_name,notes)
-                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",(item_id,action,qty,from_status,to_status,from_loc,final_loc,person,ticket,user['id'],user['display_name'],notes))
-            audit(conn,user,self,'movement.create','item',item_id,f'{action} sobre material {item_id}',{'movement_id':movement['id'],'quantity':qty,'from_status':from_status,'to_status':to_status,'from_location_id':from_loc,'to_location_id':final_loc,'ticket':ticket})
+                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",(item_id,action,qty,from_status,to_status,from_loc,(to_loc_id if partial_move else final_loc),person,ticket,user['id'],user['display_name'],notes))
+            audit(conn,user,self,'movement.create','item',item_id,f'{action} sobre material {item_id}',{'movement_id':movement['id'],'quantity':qty,'from_status':from_status,'to_status':to_status,'from_location_id':from_loc,'to_location_id':(to_loc_id if partial_move else final_loc),'ticket':ticket})
         return self._json({'ok':True,'movement':movement})
 
     def api_users(self, user):
