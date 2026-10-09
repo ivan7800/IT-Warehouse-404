@@ -19,6 +19,7 @@ jobs:
     env:
       WAREHOUSE_DATABASE_URL: postgresql://warehouse:warehouse_ci_only@127.0.0.1:5432/warehouse404_ci
       WAREHOUSE_TEST_DATABASE: "1"
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
