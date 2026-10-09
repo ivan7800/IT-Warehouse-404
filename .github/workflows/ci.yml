@@ -1,0 +1,50 @@
+name: Warehouse 404 CI
+on:
+  push:
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: warehouse
+          POSTGRES_PASSWORD: warehouse_ci_only
+          POSTGRES_DB: warehouse404_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U warehouse -d warehouse404_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      WAREHOUSE_DATABASE_URL: postgresql://warehouse:warehouse_ci_only@127.0.0.1:5432/warehouse404_ci
+      WAREHOUSE_TEST_DATABASE: "1"
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements.txt
+      - run: python -m compileall -q server.py db.py security.py scripts tests
+      - run: node --check static/app.js
+      - run: python -m unittest discover -s tests -p test_core.py -v
+      - run: python -m unittest discover -s tests -p test_security_guards.py -v
+      - run: python -m unittest discover -s tests -p test_inventory_regression.py -v
+      - run: python tests/static_checks.py
+      - run: python scripts/init_db.py
+      - run: python tests/postgres_smoke.py
+      - run: python -m unittest discover -s tests -p test_inventory_integration.py -v
+      - name: Verify database backup and restore
+        env:
+          PGPASSWORD: warehouse_ci_only
+        run: |
+          pg_dump -h 127.0.0.1 -U warehouse -d warehouse404_ci -Fc -f /tmp/warehouse_ci.dump
+          pg_restore --list /tmp/warehouse_ci.dump > /tmp/warehouse_ci.list
+          createdb -h 127.0.0.1 -U warehouse warehouse404_restore
+          pg_restore -h 127.0.0.1 -U warehouse --no-owner --no-acl -d warehouse404_restore /tmp/warehouse_ci.dump
+          python -c "import os,psycopg; a=psycopg.connect(os.environ['WAREHOUSE_DATABASE_URL']); b=psycopg.connect('postgresql://warehouse:warehouse_ci_only@127.0.0.1:5432/warehouse404_restore'); tables=['users','items','locations','movements','audit_log']; counts=lambda conn:[conn.execute('SELECT COUNT(*) FROM '+table).fetchone()[0] for table in tables]; assert counts(a)==counts(b),(counts(a),counts(b)); print('PASS backup and restore row counts',counts(a)); a.close();b.close()"
+

@@ -1,8 +1,8 @@
-# IT Warehouse 404 v3.1.0-rc1
+# IT Warehouse 404 v3.1.0-rc2
 
 Inventario de almacén IT **multiusuario**, pensado para un servidor central y clientes Windows/móvil en LAN.
 
-## Cambios de la v3.1 RC
+## Cambios de la v3.1 RC2
 
 - Entrada y salida parcial de stock por cantidades, con destinatario y ticket.
 - Traslado parcial entre ubicaciones: mantiene remanente en origen y crea lote separado en destino.

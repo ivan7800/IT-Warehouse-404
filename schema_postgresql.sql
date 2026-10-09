@@ -58,6 +58,8 @@ CREATE TABLE IF NOT EXISTS items (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     version INTEGER NOT NULL DEFAULT 1
 );
+ALTER TABLE items ADD COLUMN IF NOT EXISTS origin_item_id BIGINT REFERENCES items(id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS idx_items_origin ON items(origin_item_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_items_serial_unique ON items(serial_number) WHERE serial_number <> '';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_items_asset_unique ON items(asset_tag) WHERE asset_tag <> '';
 CREATE INDEX IF NOT EXISTS idx_items_location ON items(location_id);
@@ -79,6 +81,8 @@ CREATE TABLE IF NOT EXISTS movements (
     notes TEXT DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE movements ADD COLUMN IF NOT EXISTS destination_item_id BIGINT REFERENCES items(id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS idx_movements_destination ON movements(destination_item_id);
 CREATE INDEX IF NOT EXISTS idx_movements_item ON movements(item_id);
 CREATE INDEX IF NOT EXISTS idx_movements_date ON movements(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_movements_operator ON movements(operator_user_id, created_at DESC);
