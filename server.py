@@ -559,7 +559,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 destination_item_id=dest['id']
             execute(conn,"""UPDATE items SET status=%s,location_id=%s,quantity=%s,updated_at=NOW(),version=version+1 WHERE id=%s""",(to_status,final_loc,final_qty,item_id))
             movement=execute(conn,"""INSERT INTO movements(item_id,action,quantity,from_status,to_status,from_location_id,to_location_id,person,ticket,operator_user_id,operator_name,notes,destination_item_id)
-                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",(item_id,action,qty,from_status,to_status,from_loc,(to_loc_id if partial_move else final_loc),person,ticket,user['id'],user['display_name'],notes,destination_item_id))
+                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",(item_id,action,qty,from_status,to_status,from_loc,(to_loc_id if partial_move else final_loc),person,ticket,user['id'],user['display_name'],notes,destination_item_id))
             audit(conn,user,self,'movement.create','item',item_id,f'{action} sobre material {item_id}',{'movement_id':movement['id'],'quantity':qty,'from_status':from_status,'to_status':to_status,'from_location_id':from_loc,'to_location_id':(to_loc_id if partial_move else final_loc),'destination_item_id':destination_item_id,'ticket':ticket})
         return self._json({'ok':True,'movement':movement})
 
