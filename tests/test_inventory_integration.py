@@ -27,13 +27,12 @@ class InventoryIntegration(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         with transaction() as c:
-            execute(c,"DELETE FROM audit_log WHERE actor_user_id=%s",(cls.uid,)) if False else None
             # audit_log is append-only; intentionally retain it in the disposable test DB.
             execute(c,"DELETE FROM movements WHERE operator_user_id=%s",(cls.uid,))
             execute(c,"DELETE FROM items WHERE category='CI TEST' AND origin_item_id IS NOT NULL")
             execute(c,"DELETE FROM items WHERE category='CI TEST'")
             execute(c,"DELETE FROM locations WHERE id IN (%s,%s)",(cls.a,cls.b))
-            execute(c,"DELETE FROM users WHERE id=%s",(cls.uid,))
+            # Preserve CI user: immutable audit rows retain a valid actor FK.
     def create(self,qty=20):
         res=Handler().api_create_item(self.actor,{'tracking_mode':'bulk','category':'CI TEST','model':'Keyboard','quantity':qty,'location_id':self.a})
         self.assertTrue(res['ok'],res)
