@@ -463,6 +463,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if mode not in ('serialized','bulk') or not category or not model: return self._error('Modo, categoría y modelo son obligatorios')
         if mode=='serialized' and not (serial or asset): return self._error('Un equipo individualizado necesita serie o Asset Tag')
         quantity=1 if mode=='serialized' else safe_int(p.get('quantity'),0,0,1000000); min_stock=0 if mode=='serialized' else safe_int(p.get('min_stock'),0,0,1000000); status='disponible' if quantity>0 else 'sin_stock'
+        if mode=='bulk' and quantity==0: return self._error('La entrada inicial requiere al menos una unidad',400)
         try:
             with transaction() as conn:
                 loc=one(conn,'SELECT * FROM locations WHERE id=%s AND active=TRUE FOR UPDATE',(loc_id,)) if loc_id else None
@@ -482,6 +483,8 @@ class AppHandler(BaseHTTPRequestHandler):
             raise
 
     def api_create_movement(self, user, p):
+        if 'quantity' in p and (isinstance(p['quantity'],bool) or not str(p['quantity']).isdigit() or not 1<=int(p['quantity'])<=1000000): return self._error('Cantidad inválida',400)
+        if 'new_quantity' in p and (isinstance(p['new_quantity'],bool) or not str(p['new_quantity']).isdigit() or not 0<=int(p['new_quantity'])<=1000000): return self._error('Nuevo stock inválido',400)
         item_id=safe_int(p.get('item_id'),0,1); action=str(p.get('action','')).strip(); requested_qty=safe_int(p.get('quantity'),1,1,1000000); new_qty=safe_int(p.get('new_quantity'),-1,-1,1000000); to_loc_id=safe_int(p.get('to_location_id'),0,0) or None; person=str(p.get('person','')).strip()[:300]; ticket=str(p.get('ticket','')).strip()[:200]; notes=str(p.get('notes','')).strip()[:4000]
         with transaction() as conn:
             item=one(conn,'SELECT * FROM items WHERE id=%s FOR UPDATE',(item_id,))
@@ -548,14 +551,16 @@ class AppHandler(BaseHTTPRequestHandler):
             if item['tracking_mode']=='bulk' and action=='entrada' and final_loc==from_loc and final_loc:
                 cap=ensure_capacity(conn,locked[final_loc],final_qty,exclude_item_id=item_id)
                 if cap: return self._error(cap,409)
+            destination_item_id=None
             if partial_move:
-                execute(conn,"""INSERT INTO items(category,manufacturer,model,serial_number,asset_tag,tracking_mode,quantity,min_stock,status,location_id,notes)
-                    VALUES(%s,%s,%s,'','','bulk',%s,%s,'disponible',%s,%s)""",
-                    (item['category'],item['manufacturer'],item['model'],qty,item['min_stock'],to_loc_id,item['notes']))
+                dest=execute(conn,"""INSERT INTO items(category,manufacturer,model,serial_number,asset_tag,tracking_mode,quantity,min_stock,status,location_id,notes,origin_item_id)
+                    VALUES(%s,%s,%s,'','','bulk',%s,%s,'disponible',%s,%s,%s) RETURNING id""",
+                    (item['category'],item['manufacturer'],item['model'],qty,item['min_stock'],to_loc_id,item['notes'],item_id))
+                destination_item_id=dest['id']
             execute(conn,"""UPDATE items SET status=%s,location_id=%s,quantity=%s,updated_at=NOW(),version=version+1 WHERE id=%s""",(to_status,final_loc,final_qty,item_id))
-            movement=execute(conn,"""INSERT INTO movements(item_id,action,quantity,from_status,to_status,from_location_id,to_location_id,person,ticket,operator_user_id,operator_name,notes)
-                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",(item_id,action,qty,from_status,to_status,from_loc,(to_loc_id if partial_move else final_loc),person,ticket,user['id'],user['display_name'],notes))
-            audit(conn,user,self,'movement.create','item',item_id,f'{action} sobre material {item_id}',{'movement_id':movement['id'],'quantity':qty,'from_status':from_status,'to_status':to_status,'from_location_id':from_loc,'to_location_id':(to_loc_id if partial_move else final_loc),'ticket':ticket})
+            movement=execute(conn,"""INSERT INTO movements(item_id,action,quantity,from_status,to_status,from_location_id,to_location_id,person,ticket,operator_user_id,operator_name,notes,destination_item_id)
+                VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",(item_id,action,qty,from_status,to_status,from_loc,(to_loc_id if partial_move else final_loc),person,ticket,user['id'],user['display_name'],notes,destination_item_id))
+            audit(conn,user,self,'movement.create','item',item_id,f'{action} sobre material {item_id}',{'movement_id':movement['id'],'quantity':qty,'from_status':from_status,'to_status':to_status,'from_location_id':from_loc,'to_location_id':(to_loc_id if partial_move else final_loc),'destination_item_id':destination_item_id,'ticket':ticket})
         return self._json({'ok':True,'movement':movement})
 
     def api_users(self, user):
